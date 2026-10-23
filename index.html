@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f766e"><title>Leketech — Referral Rewards</title>
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#102a2a;background:#f4f8f7}
+*{box-sizing:border-box}body{margin:0}.wrap{max-width:760px;margin:auto;padding:20px}
+header{background:#0f766e;color:white;padding:24px;border-radius:20px;margin:12px 0 18px}
+h1{margin:0 0 8px;font-size:28px}.muted{color:#627574;font-size:14px}.white{color:#e2f7f4}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.card{background:white;border:1px solid #dce8e5;border-radius:16px;padding:18px;margin-bottom:14px}
+.metric{font-size:28px;font-weight:750;margin-top:5px}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+button{background:#0f766e;color:white;border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer}
+button.secondary{background:#e2f2ef;color:#115e59}input{width:100%;padding:12px;border:1px solid #c8d8d5;border-radius:10px;margin:5px 0 12px;font:inherit}
+label{font-size:14px;font-weight:650}form{max-width:480px}.hidden{display:none}.status{padding:10px;border-radius:10px;background:#e6f5f0;margin:10px 0}.danger{background:#fff1ef;color:#8b2418}.linkrow{overflow-wrap:anywhere;background:#f0f7f5;padding:12px;border-radius:10px}
+@media(max-width:480px){.wrap{padding:12px}.grid{grid-template-columns:1fr 1fr}.metric{font-size:23px}}
+</style></head>
+<body><main class="wrap">
+<header><h1>Leketech</h1><div class="white">Refer friends. Earn rewards.</div><p class="white">Registration: KSh 200 · Reward: KSh 50 per verified paid referral</p></header>
+<div id="notice" role="status"></div>
+<section id="auth">
+ <div class="tabs"><button onclick="show('login')">Sign in</button><button class="secondary" onclick="show('register')">Create account</button></div>
+ <div class="card" id="login"><h2>Welcome back</h2><form onsubmit="login(event)"><label>Email</label><input id="liEmail" type="email" required><label>Password</label><input id="liPassword" type="password" required><button>Sign in</button></form></div>
+ <div class="card hidden" id="register"><h2>Create your account</h2><form onsubmit="register(event)"><label>Full name</label><input id="rName" required><label>Phone number</label><input id="rPhone" placeholder="0712345678" required><label>Email</label><input id="rEmail" type="email" required><label>Password (10+ characters)</label><input id="rPassword" type="password" minlength="10" required><label>Referral code (optional)</label><input id="rRef" placeholder="Friend's code"><button>Create account</button></form></div>
+</section>
+<section id="dashboard" class="hidden">
+ <div class="card"><h2 id="hello">Your dashboard</h2><div class="grid">
+ <div><div class="muted">Available reward balance</div><div class="metric" id="balance">KSh 0</div></div>
+ <div><div class="muted">Successful referrals</div><div class="metric" id="referrals">0</div></div>
+ </div><p id="activeStatus"></p></div>
+ <div class="card"><h3>Your referral link</h3><div class="linkrow" id="refLink"></div><p><button onclick="copyLink()">Copy referral link</button></p></div>
+ <div class="card"><h3>Activate your account</h3><p>Pay the KSh 200 registration fee using an M-Pesa STK prompt. Your account activates only after payment confirmation.</p><button onclick="pay()">Request KSh 200 STK Push</button><p class="muted">The app will never ask you to enter your M-Pesa PIN here. Enter it only in the official prompt on your phone.</p></div>
+ <div class="card"><h3>Rewards payout</h3><p>Automatic M-Pesa payouts are planned but will remain unavailable until Safaricom approves the B2C payout integration and it is securely configured.</p><button class="secondary" onclick="payout()">Check payout setup</button></div>
+ <button class="secondary" onclick="logout()">Sign out</button>
+</section>
+<footer class="muted">Use only genuine referrals. Rewards are credited once when a referred member's KSh 200 payment is verified. Terms, privacy notice, and compliance review are required before public launch.</footer>
+</main>
+<script>
+let token=localStorage.getItem('leketech_token');
+const $=id=>document.getElementById(id);
+function msg(t,bad=false){$('notice').className='status'+(bad?' danger':'');$('notice').textContent=t}
+function show(which){$('login').classList.toggle('hidden',which!=='login');$('register').classList.toggle('hidden',which!=='register')}
+function headers(){return {'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})}}
+async function api(url,opts={}){const r=await fetch(url,{...opts,headers:{...headers(),...(opts.headers||{})}});const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');return d}
+async function register(e){e.preventDefault();try{const q=new URLSearchParams(location.search);const ref=$('rRef').value.trim()||q.get('ref')||'';const d=await api('/api/register',{method:'POST',body:JSON.stringify({name:$('rName').value,phone:$('rPhone').value,email:$('rEmail').value,password:$('rPassword').value,referralCode:ref})});msg(d.message);show('login');$('liEmail').value=$('rEmail').value}catch(e){msg(e.message,true)}}
+async function login(e){e.preventDefault();try{const d=await api('/api/login',{method:'POST',body:JSON.stringify({email:$('liEmail').value,password:$('liPassword').value})});token=d.token;localStorage.setItem('leketech_token',token);await load()}catch(e){msg(e.message,true)}}
+async function load(){try{const d=await api('/api/me');$('auth').classList.add('hidden');$('dashboard').classList.remove('hidden');$('hello').textContent='Hello, '+d.user.name;$('balance').textContent='KSh '+d.balance;$('referrals').textContent=d.referrals;$('refLink').textContent=d.referralLink;$('activeStatus').textContent=d.user.is_active?'Account active — you can share your referral link.':'Account not yet active — complete registration payment.';msg('Signed in successfully.')}catch(e){logout(false)}}
+async function pay(){try{const d=await api('/api/payment/stk',{method:'POST',body:JSON.stringify({})});msg(d.message)}catch(e){msg(e.message,true)}}
+async function payout(){try{const d=await api('/api/payout/request',{method:'POST',body:JSON.stringify({})});msg(d.error||'Payout setup unavailable.',true)}catch(e){msg(e.message,true)}}
+async function copyLink(){try{await navigator.clipboard.writeText($('refLink').textContent);msg('Referral link copied.')}catch{msg('Copy failed. Select and copy the link manually.',true)}}
+function logout(showMsg=true){token=null;localStorage.removeItem('leketech_token');$('dashboard').classList.add('hidden');$('auth').classList.remove('hidden');if(showMsg)msg('Signed out.')}
+if(token)load();else if(new URLSearchParams(location.search).get('ref')){$('rRef').value=new URLSearchParams(location.search).get('ref');show('register')}
+</script></body></html>
